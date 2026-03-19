@@ -1,0 +1,25 @@
+version: '3.8'
+services:
+  # Servicio de API (Backend)
+  api:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: bodegas_balam_api
+    ports:
+      - "9000:9000"
+    environment:
+      # URL de conexión para el contenedor (usa el nombre del servicio 'bodegas_balam_db')
+      DATABASE_URL: postgresql://postgres:password@bodegas_balam_db:5432/bodegas_balam
+    #depends_on:
+    #  - db
+    networks:
+      - bodegas_network
+    volumes:
+      # Opcional: Montar el código para desarrollo en tiempo real (hot-reload)
+      - ./app:/app/app
+
+networks:
+  bodegas_network:
+    #driver: bridge
+    external: true
