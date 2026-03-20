@@ -1,2 +1,4 @@
 venv/
 .venv/
+*.pic
+*__pycache__
