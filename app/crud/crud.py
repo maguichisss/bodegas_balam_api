@@ -1,5 +1,6 @@
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, RelationshipProperty, joinedload
+from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy import and_
 from typing import List, Type, TypeVar, Optional, Dict, Any
 from pydantic import BaseModel
@@ -82,21 +83,39 @@ class CRUDBase:
         filters: Optional[Dict[str, Dict[str, Any]]] = None,
         fields: Optional[List[str]] = None,
     ) -> List[Any]:
-        columns = []
-        valid_fields = []
+        column_fields = []
+        relationship_fields = []
 
         if fields:
             for f in fields:
-                if hasattr(self.model, f):
-                    columns.append(getattr(self.model, f))
-                    valid_fields.append(f)
+                attr = getattr(self.model, f, None)
+                if attr is None:
+                    continue
+                if isinstance(attr, InstrumentedAttribute):
+                    if isinstance(attr.property, RelationshipProperty):
+                        relationship_fields.append(f)
+                    else:
+                        column_fields.append(f)
+                else:
+                    column_fields.append(f)
         else:
-            columns = [getattr(self.model, f) for f in dir(self.model) if not f.startswith('_') and not callable(getattr(self.model, f))]
-            valid_fields = [f for f in dir(self.model) if not f.startswith('_') and not callable(getattr(self.model, f))]
+            for attr_name in dir(self.model):
+                if attr_name.startswith('_'):
+                    continue
+                attr = getattr(self.model, attr_name, None)
+                if attr is None or callable(attr):
+                    continue
+                if isinstance(attr, InstrumentedAttribute):
+                    if isinstance(attr.property, RelationshipProperty):
+                        relationship_fields.append(attr_name)
+                    else:
+                        column_fields.append(attr_name)
 
-        query = db.query(*columns) if columns else db.query(self.model)
+        query = db.query(self.model)
+        for rel_field in relationship_fields:
+            query = query.options(joinedload(getattr(self.model, rel_field)))
+
         conditions = []
-
         if filters:
             for field, params in filters.items():
                 if hasattr(self.model, field):
@@ -110,13 +129,34 @@ class CRUDBase:
 
         results = query.offset(skip).limit(limit).all()
 
-        if fields and not columns:
-            return results
+        def serialize_value(v):
+            if isinstance(v, Decimal):
+                return float(v)
+            if hasattr(v, 'isoformat'):
+                return v.isoformat()
+            return v
 
-        return [
-            {k: float(v) if isinstance(v, Decimal) else v for k, v in zip(valid_fields, row)}
-            for row in results
-        ]
+        output = []
+        for obj in results:
+            row = {}
+            for f in column_fields:
+                val = getattr(obj, f, None)
+                row[f] = serialize_value(val)
+            for f in relationship_fields:
+                rel_obj = getattr(obj, f, None)
+                if rel_obj is None:
+                    row[f] = None
+                else:
+                    rel_data = {}
+                    rel_mapper = rel_obj.__class__.__mapper__
+                    for rel_col in rel_mapper.columns:
+                        col_name = rel_col.key
+                        val = getattr(rel_obj, col_name, None)
+                        rel_data[col_name] = serialize_value(val)
+                    row[f] = rel_data
+            output.append(row)
+
+        return output
 
     def create(self, db: Session, obj_in: CreateSchemaType) -> ModelType:
         db_obj = self.model(**obj_in.model_dump())
