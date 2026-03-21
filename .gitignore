@@ -1,4 +1,15 @@
-venv/
-.venv/
+# cache files
 *.pic
 *__pycache__
+# log files
+*.log
+# Environments
+env/
+.env/
+venv/
+.venv/
+.env
+.env.dev
+.env.uat
+.env.prd
+!.env.example

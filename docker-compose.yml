@@ -8,15 +8,13 @@ services:
     container_name: bodegas_balam_api
     ports:
       - "9000:9000"
-    environment:
-      # URL de conexión para el contenedor (usa el nombre del servicio 'bodegas_balam_db')
-      DATABASE_URL: postgresql://postgres:password@bodegas_balam_db:5432/bodegas_balam
+    env_file:
+      - .env.dev  # Cargar variables de ambiente desde archivo (cp .env.example .env.dev)
     #depends_on:
     #  - db
     networks:
       - bodegas_network
     volumes:
-      # Opcional: Montar el código para desarrollo en tiempo real (hot-reload)
       - ./app:/app/app
 
 networks:
