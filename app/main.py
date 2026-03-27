@@ -6,7 +6,7 @@ from .routers import tipos_producto, tiendas, estatus, vendedores, productos, co
 
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(redirect_slashes=False)
+app = FastAPI(redirect_slashes=True)
 
 app.add_middleware(
     CORSMiddleware,
